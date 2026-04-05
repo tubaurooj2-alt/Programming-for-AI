@@ -1,0 +1,351 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Maze Editor · BFS / DFS</title>
+<link href="https://fonts.googleapis.com/css2?family=Share+Tech+Mono&family=Orbitron:wght@600;900&display=swap" rel="stylesheet">
+<style>
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+:root{
+  --bg:#0F1117;--panel:#1A1D27;--panel2:#12152A;--border:#252840;
+  --accent:#4F8EF7;--accent2:#7EB3FF;--wall-clr:#2A2D3E;--wall-fill:#3A3F5C;
+  --path-clr:#1E2235;--start-clr:#2ECC71;--end-clr:#E74C3C;--grid-clr:#1e2138;
+  --text:#C8CCDC;--text-dim:#5a6080;
+  --visited-bfs:#C8A020;--visited-dfs:#9B59B6;--path-bfs:#3A8EF7;--path-dfs:#1ABC9C;
+  --stats-bg:#0C0F1A;--stat-val:#E8F0FF;
+}
+html,body{height:100%;background:var(--bg);color:var(--text);font-family:'Share Tech Mono',monospace;overflow:hidden}
+body::after{content:'';position:fixed;inset:0;pointer-events:none;z-index:9999;background:repeating-linear-gradient(0deg,transparent,transparent 3px,rgba(79,142,247,.022) 3px,rgba(79,142,247,.022) 4px)}
+body::before{content:'';position:fixed;inset:0;pointer-events:none;z-index:0;background-image:radial-gradient(rgba(79,142,247,.12) 1px,transparent 1px);background-size:32px 32px}
+#app{display:flex;height:100vh;position:relative;z-index:1}
+#panel{width:200px;min-width:200px;background:var(--panel);border-right:1px solid var(--border);display:flex;flex-direction:column;padding:16px 12px;gap:0;overflow-y:auto;overflow-x:hidden}
+#panel::-webkit-scrollbar{width:3px}
+#panel::-webkit-scrollbar-thumb{background:var(--border)}
+.logo{font-family:'Orbitron',monospace;font-weight:900;font-size:18px;line-height:1.15;letter-spacing:.05em;color:var(--accent);text-shadow:0 0 14px rgba(79,142,247,.7),0 0 35px rgba(79,142,247,.25);margin-bottom:2px}
+.logo-sub{font-size:8px;letter-spacing:.2em;color:var(--text-dim);text-transform:uppercase;margin-bottom:14px}
+.sec-label{font-size:8px;letter-spacing:.22em;color:var(--text-dim);text-transform:uppercase;margin:8px 0 5px}
+.divider{height:1px;background:var(--border);margin:10px 0}
+.tool-btn{width:100%;padding:7px 10px;text-align:left;font-family:'Share Tech Mono',monospace;font-size:11px;border-radius:5px;cursor:pointer;border:1px solid transparent;background:transparent;color:var(--text-dim);transition:all .12s;margin-bottom:3px}
+.tool-btn:hover{color:var(--text);border-color:var(--border)}
+.tool-btn.active-wall{background:var(--wall-fill);color:#fff;border-color:var(--wall-clr)}
+.tool-btn.active-start{background:var(--start-clr);color:#fff;border-color:#27ae60}
+.tool-btn.active-end{background:var(--end-clr);color:#fff;border-color:#c0392b}
+select{width:100%;padding:6px 8px;margin-bottom:4px;font-family:'Share Tech Mono',monospace;font-size:10px;background:var(--panel2);color:var(--text);border:1px solid var(--border);border-radius:5px;outline:none;cursor:pointer;appearance:none;background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6'%3E%3Cpath d='M0 0l5 6 5-6z' fill='%234F8EF7'/%3E%3C/svg%3E");background-repeat:no-repeat;background-position:right 8px center}
+select:focus{border-color:var(--accent)}
+.algo-card{background:var(--panel2);border:1px solid var(--border);border-radius:5px;padding:7px 8px;font-size:8px;line-height:1.6;color:var(--text-dim);margin-bottom:6px}
+.speed-row{display:flex;align-items:center;gap:5px;margin-bottom:8px}
+.speed-lbl{font-size:8px;color:var(--text-dim)}
+input[type=range]{flex:1;-webkit-appearance:none;height:3px;background:var(--border);border-radius:2px;outline:none;cursor:pointer}
+input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:12px;height:12px;border-radius:50%;background:var(--accent);box-shadow:0 0 7px rgba(79,142,247,.8);cursor:pointer}
+.action-btn{width:100%;padding:8px 10px;text-align:left;font-family:'Share Tech Mono',monospace;font-size:11px;border-radius:5px;cursor:pointer;border:1px solid var(--border);background:transparent;color:var(--text);transition:all .12s;margin-bottom:3px}
+.action-btn:hover{border-color:var(--accent);color:var(--accent2);box-shadow:0 0 10px rgba(79,142,247,.15)}
+.action-btn.solve-btn{border-color:var(--accent);color:var(--accent);background:rgba(79,142,247,.06)}
+.action-btn.solve-btn:hover{box-shadow:0 0 16px rgba(79,142,247,.3)}
+.action-btn.stop-btn{border-color:var(--end-clr);color:var(--end-clr)}
+.action-btn.gen-btn{border-color:var(--start-clr);color:var(--start-clr)}
+.sound-row{display:flex;align-items:center;justify-content:space-between;padding:6px 8px;background:var(--panel2);border:1px solid var(--border);border-radius:5px;cursor:pointer;margin-bottom:4px}
+.sound-lbl{font-size:9px;color:var(--text-dim)}
+.sound-pill{width:28px;height:14px;border-radius:7px;border:1px solid var(--accent);background:var(--panel2);position:relative;transition:background .2s}
+.sound-pill::after{content:'';position:absolute;top:2px;left:2px;width:8px;height:8px;border-radius:50%;background:var(--accent);box-shadow:0 0 5px rgba(79,142,247,.9);transition:transform .2s,background .2s}
+.sound-pill.off{border-color:var(--text-dim)}
+.sound-pill.off::after{background:var(--text-dim);box-shadow:none;transform:translateX(14px)}
+.legend{display:flex;flex-direction:column;gap:3px;margin-bottom:10px}
+.leg{display:flex;align-items:center;gap:7px;font-size:8px;color:var(--text-dim)}
+.sw{width:10px;height:10px;border-radius:2px;flex-shrink:0}
+#status{font-size:9px;color:var(--accent);line-height:1.5;margin-top:auto;padding-top:8px;letter-spacing:.04em}
+#main{flex:1;display:flex;flex-direction:column;align-items:stretch;overflow:hidden}
+#canvas-wrap{flex:1;display:flex;align-items:center;justify-content:center;overflow:hidden;padding:16px}
+#maze-canvas{display:block;cursor:crosshair;border-radius:4px;border:1px solid var(--border);box-shadow:0 0 0 1px rgba(79,142,247,.08),0 0 40px rgba(79,142,247,.06);image-rendering:pixelated}
+#statsbar{background:var(--stats-bg);border-top:1px solid var(--border);padding:10px 20px;display:flex;align-items:center;gap:0;flex-shrink:0}
+.stat-label{font-family:'Orbitron',monospace;font-size:7px;font-weight:600;letter-spacing:.18em;color:var(--text-dim);text-transform:uppercase;margin-bottom:2px}
+.stat-val{font-family:'Orbitron',monospace;font-size:18px;font-weight:900;color:var(--stat-val);line-height:1}
+.stat-box{padding:0 20px}
+.stat-div{width:1px;background:var(--border);align-self:stretch}
+#stats-algo-label{font-size:8px;letter-spacing:.2em;color:var(--text-dim);text-transform:uppercase;margin-left:auto;padding-right:4px}
+#toast{position:fixed;top:18px;left:50%;transform:translateX(-50%) translateY(-80px);background:var(--panel2);color:var(--accent);font-family:'Orbitron',monospace;font-size:11px;font-weight:600;padding:9px 24px;border-radius:20px;letter-spacing:.1em;border:1px solid var(--accent);box-shadow:0 0 20px rgba(79,142,247,.4);transition:transform .35s cubic-bezier(.34,1.56,.64,1);z-index:1000;pointer-events:none;white-space:nowrap}
+#toast.show{transform:translateX(-50%) translateY(0)}
+</style>
+</head>
+<body>
+<div id="app">
+<div id="panel">
+  <div class="logo">MAZE<br>EDITOR</div>
+  <div class="logo-sub">BFS · DFS · Generator</div>
+  <div class="sec-label">Tool</div>
+  <button class="tool-btn active-wall" id="tool-wall"  onclick="setTool('wall')">✦  Wall</button>
+  <button class="tool-btn"            id="tool-start" onclick="setTool('start')">▶  Start</button>
+  <button class="tool-btn"            id="tool-end"   onclick="setTool('end')">◼  End</button>
+  <div class="divider"></div>
+  <div class="sec-label">Algorithm</div>
+  <select id="algo-select" onchange="updateAlgoCard()">
+    <option value="bfs">BFS – Breadth-First</option>
+    <option value="dfs">DFS – Depth-First</option>
+  </select>
+  <div class="algo-card" id="algo-card"></div>
+  <div class="sec-label">Speed</div>
+  <div class="speed-row">
+    <span class="speed-lbl">Slow</span>
+    <input type="range" id="speed" min="5" max="200" value="80">
+    <span class="speed-lbl">Fast</span>
+  </div>
+  <div class="divider"></div>
+  <div class="sec-label">Actions</div>
+  <button class="action-btn solve-btn" onclick="startSolve()">⬡  Solve</button>
+  <button class="action-btn stop-btn"  onclick="stopSolve()">⏹  Stop</button>
+  <button class="action-btn gen-btn"   onclick="generateMaze()">⚄  Generate</button>
+  <button class="action-btn"          onclick="clearWalls()">⊘  Clear Walls</button>
+  <button class="action-btn"          onclick="resetAll()">↺  Reset</button>
+  <button class="action-btn"          onclick="exportMaze()">↓  Export JSON</button>
+  <label class="action-btn" style="cursor:pointer;display:block">↑  Import JSON<input type="file" id="import-file" accept=".json" style="display:none" onchange="importMaze(event)"></label>
+  <div class="divider"></div>
+  <div class="sound-row" onclick="toggleSound()" id="sound-row">
+    <span class="sound-lbl">SOUND FX</span>
+    <div class="sound-pill" id="sound-pill"></div>
+  </div>
+  <div class="divider"></div>
+  <div class="sec-label">Legend</div>
+  <div class="legend">
+    <div class="leg"><div class="sw" style="background:#2ECC71"></div>Start (S)</div>
+    <div class="leg"><div class="sw" style="background:#E74C3C"></div>End (E)</div>
+    <div class="leg"><div class="sw" style="background:#3A3F5C"></div>Wall</div>
+    <div class="leg"><div class="sw" style="background:#1E2235"></div>Open</div>
+    <div class="leg"><div class="sw" style="background:#C8A020"></div>BFS Visited</div>
+    <div class="leg"><div class="sw" style="background:#9B59B6"></div>DFS Visited</div>
+    <div class="leg"><div class="sw" style="background:#3A8EF7"></div>BFS Path</div>
+    <div class="leg"><div class="sw" style="background:#1ABC9C"></div>DFS Path</div>
+  </div>
+  <div id="status">Draw walls or Generate a maze.</div>
+</div>
+<div id="main">
+  <div id="canvas-wrap"><canvas id="maze-canvas"></canvas></div>
+  <div id="statsbar">
+    <div class="stat-box"><div class="stat-label">Nodes Explored</div><div class="stat-val" id="st-nodes">—</div></div>
+    <div class="stat-div"></div>
+    <div class="stat-box"><div class="stat-label">Path Length</div><div class="stat-val" id="st-path">—</div></div>
+    <div class="stat-div"></div>
+    <div class="stat-box"><div class="stat-label">Time Taken</div><div class="stat-val" id="st-time">—</div></div>
+    <div class="stat-div"></div>
+    <div class="stat-box"><div class="stat-label">Wall Density</div><div class="stat-val" id="st-walls">0%</div></div>
+    <div id="stats-algo-label">READY</div>
+  </div>
+</div>
+</div>
+<div id="toast">PATH FOUND</div>
+<script>
+// SOUND ENGINE
+let _ac=null,soundOn=true;
+function _getAC(){if(!_ac)_ac=new(window.AudioContext||window.webkitAudioContext)();if(_ac.state==='suspended')_ac.resume();return _ac}
+function _tone(freq,type,dur,vol=0.15){if(!soundOn)return;try{const ac=_getAC(),o=ac.createOscillator(),g=ac.createGain();o.connect(g);g.connect(ac.destination);o.type=type;o.frequency.setValueAtTime(freq,ac.currentTime);g.gain.setValueAtTime(vol,ac.currentTime);g.gain.exponentialRampToValueAtTime(0.001,ac.currentTime+dur);o.start(ac.currentTime);o.stop(ac.currentTime+dur)}catch(e){}}
+function _noise(dur,vol=0.09,band=500){if(!soundOn)return;try{const ac=_getAC(),buf=ac.createBuffer(1,ac.sampleRate*dur,ac.sampleRate),d=buf.getChannelData(0);for(let i=0;i<d.length;i++)d[i]=Math.random()*2-1;const src=ac.createBufferSource(),g=ac.createGain(),f=ac.createBiquadFilter();f.type='bandpass';f.frequency.value=band;f.Q.value=1;src.buffer=buf;src.connect(f);f.connect(g);g.connect(ac.destination);g.gain.setValueAtTime(vol,ac.currentTime);g.gain.exponentialRampToValueAtTime(0.001,ac.currentTime+dur);src.start();src.stop(ac.currentTime+dur)}catch(e){}}
+function sfxWall(){_noise(0.05,0.12,320);_tone(75,'square',0.05,0.08)}
+function sfxStep(){_tone(260+Math.min(_vc*.25,120),'sine',0.03,0.05)}
+function sfxFound(){[523,659,784,1047].forEach((f,i)=>setTimeout(()=>_tone(f,'triangle',0.2,0.18),i*70));setTimeout(()=>_tone(2093,'sine',0.3,0.07),280)}
+function sfxNoPath(){[380,300,210,140].forEach((f,i)=>setTimeout(()=>_tone(f,'sawtooth',0.15,0.14),i*85))}
+function sfxGen(){for(let i=0;i<5;i++)setTimeout(()=>_tone(180+i*70,'square',0.04,0.07),i*25)}
+function sfxPlace(){_tone(500,'sine',0.06,0.1)}
+function toggleSound(){soundOn=!soundOn;document.getElementById('sound-pill').className='sound-pill'+(soundOn?'':' off');showToast(soundOn?'SOUND ON':'SOUND OFF');if(soundOn)_tone(440,'sine',0.08,0.12)}
+
+// CONSTANTS
+const ROWS=20,COLS=20,CELL=28,PAD=16;
+const W=COLS*CELL+PAD*2,H=ROWS*CELL+PAD*2;
+const CLR={bg:'#0c0f1a',grid:'#1a1d30',wall:'#2A2D3E',wallFill:'#3A3F5C',path:'#141728',start:'#2ECC71',end:'#E74C3C',visitBFS:'#C8A020',visitDFS:'#9B59B6',pathBFS:'#3A8EF7',pathDFS:'#1ABC9C'};
+
+let grid=Array.from({length:ROWS},()=>new Uint8Array(COLS));
+let startCell={r:0,c:0},endCell={r:ROWS-1,c:COLS-1};
+let tool='wall',solving=false,animId=null,dragVal=null;
+let visitedSet=new Set(),pathSet=new Set(),_vc=0,_tStart=0;
+
+const canvas=document.getElementById('maze-canvas');
+const ctx=canvas.getContext('2d');
+canvas.width=W;canvas.height=H;
+
+function resizeCanvas(){
+  const wrap=document.getElementById('canvas-wrap');
+  const maxW=wrap.clientWidth-32,maxH=wrap.clientHeight-32;
+  const scale=Math.min(maxW/W,maxH/H,2);
+  canvas.style.width=Math.floor(W*scale)+'px';
+  canvas.style.height=Math.floor(H*scale)+'px';
+}
+window.addEventListener('resize',resizeCanvas);
+
+const k=(r,c)=>r*COLS+c;
+function cellXY(r,c){return[PAD+c*CELL,PAD+r*CELL]}
+
+function drawAll(){
+  ctx.fillStyle=CLR.bg;ctx.fillRect(0,0,W,H);
+  ctx.strokeStyle=CLR.grid;ctx.lineWidth=1;
+  for(let r=0;r<=ROWS;r++){ctx.beginPath();ctx.moveTo(PAD,PAD+r*CELL);ctx.lineTo(PAD+COLS*CELL,PAD+r*CELL);ctx.stroke()}
+  for(let c=0;c<=COLS;c++){ctx.beginPath();ctx.moveTo(PAD+c*CELL,PAD);ctx.lineTo(PAD+c*CELL,PAD+ROWS*CELL);ctx.stroke()}
+  for(let r=0;r<ROWS;r++)for(let c=0;c<COLS;c++)drawCell(r,c);
+}
+
+function drawCell(r,c){
+  const[x,y]=cellXY(r,c);const ck=k(r,c);
+  const isBFS=document.getElementById('algo-select').value==='bfs';
+  const isS=r===startCell.r&&c===startCell.c;
+  const isE=r===endCell.r&&c===endCell.c;
+  let fill;
+  if(isS)fill=CLR.start;
+  else if(isE)fill=CLR.end;
+  else if(pathSet.has(ck))fill=isBFS?CLR.pathBFS:CLR.pathDFS;
+  else if(visitedSet.has(ck))fill=isBFS?CLR.visitBFS:CLR.visitDFS;
+  else if(grid[r][c]===1)fill=CLR.wallFill;
+  else fill=CLR.path;
+  ctx.fillStyle=fill;ctx.fillRect(x+1,y+1,CELL-2,CELL-2);
+  if(grid[r][c]===1&&!isS&&!isE){ctx.strokeStyle='#1e2235';ctx.lineWidth=1;ctx.strokeRect(x+1,y+1,CELL-2,CELL-2);ctx.fillStyle='rgba(79,142,247,.07)';ctx.fillRect(x+3,y+3,3,3);ctx.fillRect(x+CELL-6,y+CELL-6,3,3)}
+  if(pathSet.has(ck)&&!isS&&!isE){ctx.fillStyle=isBFS?'rgba(200,220,255,.5)':'rgba(150,255,220,.5)';ctx.fillRect(x+CELL/2-2,y+CELL/2-2,4,4)}
+  if(isS||isE){ctx.fillStyle='rgba(0,0,0,.35)';ctx.fillRect(x+1,y+1,CELL-2,CELL-2);ctx.fillStyle='#fff';ctx.font=`bold ${CELL*.42}px monospace`;ctx.textAlign='center';ctx.textBaseline='middle';ctx.fillText(isS?'S':'E',x+CELL/2,y+CELL/2+1)}
+}
+
+function getCell(e){
+  const rect=canvas.getBoundingClientRect();
+  const sx=canvas.width/rect.width,sy=canvas.height/rect.height;
+  const mx=(e.clientX??0)-rect.left,my=(e.clientY??0)-rect.top;
+  const c=Math.floor((mx*sx-PAD)/CELL),r=Math.floor((my*sy-PAD)/CELL);
+  if(r>=0&&r<ROWS&&c>=0&&c<COLS)return{r,c};return null;
+}
+
+canvas.addEventListener('mousedown',e=>{
+  if(solving)return;clearSolution();
+  const cell=getCell(e);if(!cell)return;const{r,c}=cell;
+  if(tool==='wall'){dragVal=1-grid[r][c];grid[r][c]=dragVal;sfxWall();drawCell(r,c);updateWallDensity()}
+  else if(tool==='start'){startCell={r,c};sfxPlace();drawAll()}
+  else{endCell={r,c};sfxPlace();drawAll()}
+});
+canvas.addEventListener('mousemove',e=>{
+  if(dragVal===null||tool!=='wall'||solving)return;
+  const cell=getCell(e);if(!cell)return;const{r,c}=cell;
+  if(r===startCell.r&&c===startCell.c)return;
+  if(r===endCell.r&&c===endCell.c)return;
+  if(grid[r][c]!==dragVal){grid[r][c]=dragVal;sfxWall();drawCell(r,c)}
+});
+canvas.addEventListener('mouseup',()=>{dragVal=null;updateWallDensity()});
+canvas.addEventListener('mouseleave',()=>{dragVal=null});
+
+function setTool(t){
+  tool=t;
+  document.getElementById('tool-wall').className='tool-btn'+(t==='wall'?' active-wall':'');
+  document.getElementById('tool-start').className='tool-btn'+(t==='start'?' active-start':'');
+  document.getElementById('tool-end').className='tool-btn'+(t==='end'?' active-end':'');
+  setStatus({wall:'Click/drag to toggle walls',start:'Click a cell to place Start',end:'Click a cell to place End'}[t]);
+}
+
+function updateAlgoCard(){
+  const bfs=document.getElementById('algo-select').value==='bfs';
+  document.getElementById('algo-card').innerHTML=bfs?'QUEUE (FIFO). Level-by-level.<br>Always finds SHORTEST path.<br>Visited=yellow · Path=blue':'STACK (LIFO). Dives deep first.<br>Path may NOT be shortest.<br>Visited=purple · Path=teal';
+  if(visitedSet.size)drawAll();
+}
+
+function generateMaze(){
+  if(solving)return;clearSolution();
+  const g=Array.from({length:ROWS},()=>new Uint8Array(COLS).fill(1));
+  const LR=Math.floor(ROWS/2),LC=Math.floor(COLS/2);
+  g[0][0]=0;const stack=[[0,0]];
+  while(stack.length){
+    const[lr,lc]=stack[stack.length-1];
+    const dirs=[[0,1],[0,-1],[1,0],[-1,0]].sort(()=>Math.random()-.5);
+    let moved=false;
+    for(const[dr,dc]of dirs){
+      const nlr=lr+dr,nlc=lc+dc;
+      if(nlr>=0&&nlr<LR&&nlc>=0&&nlc<LC){
+        const nr=nlr*2,nc=nlc*2;
+        if(g[nr][nc]===1){g[lr*2+dr][lc*2+dc]=0;g[nr][nc]=0;stack.push([nlr,nlc]);moved=true;break}
+      }
+    }
+    if(!moved)stack.pop();
+  }
+  grid=g;startCell={r:0,c:0};endCell={r:ROWS%2===0?ROWS-2:ROWS-1,c:COLS%2===0?COLS-2:COLS-1};
+  grid[startCell.r][startCell.c]=0;grid[endCell.r][endCell.c]=0;
+  sfxGen();drawAll();resetStats();updateWallDensity();
+  setStatus('Maze generated! Click Solve to run the algorithm.');
+}
+
+function startSolve(){
+  if(solving)return;clearSolution();resetStats();
+  if(grid[startCell.r][startCell.c]===1||grid[endCell.r][endCell.c]===1){showToast('START OR END IS A WALL');return}
+  const isBFS=document.getElementById('algo-select').value==='bfs';
+  const start=k(startCell.r,startCell.c),end=k(endCell.r,endCell.c);
+  const parent=new Map([[start,null]]);
+  const frontier=[start];
+  _vc=0;_tStart=performance.now();solving=true;
+  document.getElementById('stats-algo-label').textContent=isBFS?'BFS RUNNING':'DFS RUNNING';
+
+  function step(){
+    if(!frontier.length||!solving){
+      solving=false;const elapsed=performance.now()-_tStart;
+      setStat('nodes',_vc);setStat('time',elapsed.toFixed(1)+'ms');
+      document.getElementById('stats-algo-label').textContent='NO PATH';
+      sfxNoPath();showToast('NO PATH EXISTS');setStatus('No path exists.');return;
+    }
+    const cur=isBFS?frontier.shift():frontier.pop();
+    const r=Math.floor(cur/COLS),c=cur%COLS;
+    if(cur===end){
+      solving=false;const elapsed=performance.now()-_tStart;
+      setStat('nodes',_vc);setStat('time',elapsed.toFixed(1)+'ms');
+      animatePath(parent,end,isBFS);return;
+    }
+    for(const[dr,dc]of[[-1,0],[1,0],[0,-1],[0,1]]){
+      const nr=r+dr,nc=c+dc,nk=k(nr,nc);
+      if(nr>=0&&nr<ROWS&&nc>=0&&nc<COLS&&!parent.has(nk)&&grid[nr][nc]===0){parent.set(nk,cur);frontier.push(nk)}
+    }
+    if(cur!==start&&cur!==end){visitedSet.add(cur);_vc++;drawCell(r,c);if(_vc%5===0)sfxStep()}
+    setStat('nodes',_vc);setStatus(`${isBFS?'BFS':'DFS'}: ${_vc} cells visited…`);
+    const spd=parseInt(document.getElementById('speed').value);
+    animId=setTimeout(step,Math.max(1,210-spd));
+  }
+  step();
+}
+
+function animatePath(parent,endKey,isBFS){
+  const nodes=[];let node=endKey;
+  while(node!==null){nodes.push(node);node=parent.get(node)}
+  nodes.reverse();pathSet=new Set(nodes);
+  const pathLen=nodes.length-1;setStat('path',pathLen);
+  document.getElementById('stats-algo-label').textContent=isBFS?'BFS DONE':'DFS DONE';
+  sfxFound();showToast(`PATH FOUND — ${pathLen} STEPS`);
+  let i=0;
+  function flash(){if(i<nodes.length){const r=Math.floor(nodes[i]/COLS),c=nodes[i]%COLS;drawCell(r,c);i++;setTimeout(flash,18)}else{setStatus(`${isBFS?'BFS':'DFS'} done!  Visited ${_vc} nodes  |  Path: ${pathLen} steps`)}}
+  flash();
+}
+
+function stopSolve(){if(animId){clearTimeout(animId);animId=null}solving=false;document.getElementById('stats-algo-label').textContent='STOPPED';setStatus('Stopped.')}
+function clearSolution(){stopSolve();visitedSet.clear();pathSet.clear();_vc=0}
+function clearWalls(){clearSolution();grid=Array.from({length:ROWS},()=>new Uint8Array(COLS));drawAll();resetStats();updateWallDensity();setStatus('Walls cleared.')}
+function resetAll(){clearSolution();grid=Array.from({length:ROWS},()=>new Uint8Array(COLS));startCell={r:0,c:0};endCell={r:ROWS-1,c:COLS-1};drawAll();resetStats();updateWallDensity();setStatus('Maze reset.')}
+
+function exportMaze(){
+  const data=JSON.stringify({grid:Array.from(grid,r=>Array.from(r)),start:[startCell.r,startCell.c],end:[endCell.r,endCell.c]},null,2);
+  const a=document.createElement('a');a.href='data:application/json,'+encodeURIComponent(data);a.download='maze.json';a.click();showToast('EXPORTED MAZE.JSON');
+}
+function importMaze(e){
+  const file=e.target.files[0];if(!file)return;
+  const reader=new FileReader();
+  reader.onload=ev=>{try{const data=JSON.parse(ev.target.result);grid=data.grid.map(r=>new Uint8Array(r));startCell={r:data.start[0],c:data.start[1]};endCell={r:data.end[0],c:data.end[1]};clearSolution();drawAll();resetStats();updateWallDensity();setStatus('Maze imported.');showToast('MAZE IMPORTED')}catch(err){showToast('INVALID JSON FILE')}};
+  reader.readAsText(file);e.target.value='';
+}
+
+function setStat(id,val){document.getElementById('st-'+id).textContent=val}
+function resetStats(){['nodes','path','time'].forEach(id=>setStat(id,'—'));document.getElementById('stats-algo-label').textContent='READY';updateWallDensity()}
+function updateWallDensity(){let w=0;for(let r=0;r<ROWS;r++)for(let c=0;c<COLS;c++)if(grid[r][c])w++;setStat('walls',Math.round(100*w/(ROWS*COLS))+'%')}
+function setStatus(msg){document.getElementById('status').textContent=msg}
+let _tt=null;
+function showToast(msg){const t=document.getElementById('toast');t.textContent=msg;t.classList.add('show');clearTimeout(_tt);_tt=setTimeout(()=>t.classList.remove('show'),2000)}
+
+document.addEventListener('keydown',e=>{
+  if(e.target.tagName==='INPUT')return;
+  if(e.key===' '){e.preventDefault();startSolve()}
+  if(e.key==='g'||e.key==='G')generateMaze();
+  if(e.key==='c'||e.key==='C')clearWalls();
+  if(e.key==='r'||e.key==='R')resetAll();
+  if(e.key==='s'||e.key==='S')toggleSound();
+  if(e.key==='1')setTool('wall');
+  if(e.key==='2')setTool('start');
+  if(e.key==='3')setTool('end');
+  if(e.key==='Escape')stopSolve();
+});
+
+resizeCanvas();updateAlgoCard();setTool('wall');drawAll();updateWallDensity();
+</script>
+</body>
+</html>
